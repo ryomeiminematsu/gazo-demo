@@ -5560,7 +5560,7 @@ window.DGKA._test = { prims: prims, svgMarks: svgMarks, buildBA: buildBA, openPa
 })();
 
 </script>
-<div id="offlineState" style="position:fixed;left:8px;right:8px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:9999;padding:10px 12px;border-radius:10px;font:600 14px/1.5 -apple-system,sans-serif;background:#FFF6E0;color:#7A4B00;border:1px solid #E8C77A;box-shadow:0 2px 8px rgba(0,0,0,.15)">ネットなしの準備：確認中…</div>
+<div id="offlineState" style="position:fixed;left:8px;right:8px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:9999;padding:10px 12px;border-radius:10px;font:600 14px/1.5 -apple-system,sans-serif;background:#FFF6E0;color:#7A4B00;border:1px solid #E8C77A;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none"></div>
 <script>
 /* ネットなしで開けるように、このページを端末に保存する。結果は画面に出し、入れるときだけPCにも知らせる */
 (function () {
@@ -5568,12 +5568,12 @@ window.DGKA._test = { prims: prims, svgMarks: svgMarks, buildBA: buildBA, openPa
   var standalone = (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   function report(r) { try { if (navigator.onLine) { fetch('_report?r=' + encodeURIComponent(r + ' | standalone=' + standalone + ' | ' + navigator.userAgent), { cache: 'no-store' }).catch(function () {}); } } catch (e) {} }
   function show(ok, msg) {
-    el.textContent = msg;
+    el.style.display = 'block'; el.textContent = msg;
     el.style.background = ok ? '#E6F5EC' : '#FDECEC'; el.style.color = ok ? '#1E6B3A' : '#A12622'; el.style.borderColor = ok ? '#8CCBA4' : '#E8A0A0';
     if (ok) { setTimeout(function () { el.style.display = 'none'; }, standalone ? 2500 : 8000); }
   }
-  if (!('serviceWorker' in navigator)) { show(false, 'ネットなしの準備：✕ この開き方では保存できません（serviceWorker なし）'); report('NG no-sw'); return; }
-  if (!window.isSecureContext) { show(false, 'ネットなしの準備：✕ 安全な接続ではありません（証明書）'); report('NG insecure'); return; }
+  if (!('serviceWorker' in navigator)) { el.style.display = 'none'; report('NG no-sw'); return; }
+  if (!window.isSecureContext) { el.style.display = 'none'; report('NG insecure'); return; }
   navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function () {
     return caches.keys().then(function (ks) {
       var k = ks.filter(function (x) { return x.indexOf('dgk-demo-') === 0; })[0];
@@ -5581,10 +5581,10 @@ window.DGKA._test = { prims: prims, svgMarks: svgMarks, buildBA: buildBA, openPa
       return caches.open(k).then(function (c) { return c.keys(); }).then(function (rs) { return rs.length; });
     });
   }).then(function (n) {
-    var msg = 'ネットなしの準備：○ 完了（' + n + '個のファイルを保存）' + (standalone ? '' : '　→ 次は「ホーム画面に追加」');
-    show(true, msg); report('OK files=' + n);
+    if (standalone) { el.style.display = 'none'; } else { show(true, 'ネットなしの準備：○ 完了　→ 次は「ホーム画面に追加」'); }
+    report('OK files=' + n);
   }).catch(function (e) {
-    show(false, 'ネットなしの準備：✕ 保存できませんでした（' + (e && (e.name + ' ' + e.message)) + '）'); report('NG ' + (e && (e.name + ' ' + e.message)));
+    el.style.display = 'none'; report('NG ' + (e && (e.name + ' ' + e.message)));   // 失敗は画面に出さない（記録だけ）
   });
 })();
 </script>
