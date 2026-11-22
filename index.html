@@ -1321,7 +1321,7 @@ h3.sub {
   <div class="viewer-body" id="viewerBody"><img id="viewerImg" alt=""><svg class="mk-svg" id="viewerMarks" aria-hidden="true"></svg></div>
   <div class="viewer-tools" id="viewerTools">
     <button class="btn btn-sm" id="btnCopyPhoto" title="Word・Excel などに貼り付けられます">📋 コピー</button>
-    <button class="btn btn-sm btn-help" id="btnCopyHelp">❔ 貼ったあと小さくするには</button>
+    <button type="button" class="hg-q hg-dark" id="btnCopyHelp" title="コピーした写真を小さくする方法" aria-label="コピーした写真を小さくする方法" style="align-self:center;margin-left:-2px;">?</button>
     <button class="btn btn-sm" id="btnEditMarks">✏️ 書き込み</button>
     <button class="toggle toggle-dark" id="btnShowMarks" aria-pressed="true"><span class="sw"></span><span>書き込みを表示</span></button>
   </div>
@@ -1455,8 +1455,9 @@ h3.sub {
     <div class="ba-preview"><img id="baPreview" alt="できあがりの見本"></div>
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn" id="baClose">閉じる</button>
-      <button class="btn btn-ghost" id="baCopyHelp">❔ 貼ったあと小さくするには</button>
+      
       <button class="btn" id="baCopy" style="margin-left:auto;">📋 コピー</button>
+      <button type="button" class="hg-q" id="baCopyHelp" title="コピーした画像を小さくする方法" aria-label="コピーした画像を小さくする方法" style="align-self:center;">?</button>
       <button class="btn btn-primary" id="baSave">💾 画像を保存</button>
     </div>
   </div>
@@ -5889,6 +5890,7 @@ var css = document.createElement('style');
 css.textContent = [
   '.hg-q{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #C5CFD4;background:#fff;color:#7D8B93;font:700 12px/1 -apple-system,sans-serif;cursor:pointer;vertical-align:2px;opacity:.8;flex:0 0 auto}',
   '.hg-q:hover,.hg-q:focus{opacity:1;color:#0E7C86;border-color:#0E7C86;outline:none}',
+  '.viewer-tools .hg-q,.btn-row .hg-q{align-self:center}',
   '.hg-q.hg-dark{background:rgba(255,255,255,.12);color:#DDE;border-color:rgba(255,255,255,.4)}',
   '#hgHeadBtn{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.15);color:#fff;font:700 15px/1 -apple-system,sans-serif;cursor:pointer;flex:0 0 auto}',
   '#hgDlg{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(20,30,35,.45);padding:12px}',
