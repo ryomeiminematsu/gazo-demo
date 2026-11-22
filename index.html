@@ -5343,6 +5343,7 @@ function copyFallback(blobP, what) {
 }
 /* 貼り付けたあと Word・Excel で小さくする方法（コピーの横の「❔」） */
 function showPasteHelp() {
+  if (window.hgOpen) { window.hgOpen('copy'); return; }   // イラスト付きの使い方（help.js）があればそちらを開く
   D.openInfoModal(
     '<h3>貼り付けた写真を小さくするには</h3>' +
     '<p class="help-meta">写真はきれいなまま（大きいまま）コピーされます。貼り付けたあと、Word・Excel の側で大きさを変えてください。</p>' +
@@ -5557,6 +5558,479 @@ if (tabCmp) { tabCmp.addEventListener('click', renderCmpTools); }
 
 /* テスト・確認用（画面の動きには関係しない） */
 window.DGKA._test = { prims: prims, svgMarks: svgMarks, buildBA: buildBA, openParts: openParts, ed: ed, MAPS: MAPS };
+})();
+
+</script>
+<script>
+/* ============================================================
+   デジカル画像フォルダ管理 — 使い方ヘルプ（イラスト付き）
+   ・各見出し・各操作の横の小さな「?」を押すと、その操作の説明が開く
+   ・画面右上の「?」からは、すべての説明の一覧が開く
+   ・データ・サーバーには一切さわらない（画面に説明を出すだけ）
+   ・ワクチン管理ツールの「使い方ヘルプ」と同じ形・同じ色づかい
+   ============================================================ */
+(function () {
+'use strict';
+if (typeof document === 'undefined' || !document.head) { return; }
+function $(id) { return document.getElementById(id); }
+function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+/* ---------- イラスト（SVG）の部品 ---------- */
+var C = { pri: '#0E7C86', pale: '#E3F2F3', hi: '#F28C28', hiPale: '#FFF1E3', ink: '#33414A', mute: '#9AA7AE', line: '#D5DDE1', bg: '#F6F8F9', red: '#C2372E', ok: '#2E8B57', warn: '#E0A100', skin: '#E8C4A8' };
+function T(x, y, s, o) { o = o || {}; return '<text x="' + x + '" y="' + y + '" font-size="' + (o.z || 9) + '" fill="' + (o.c || C.ink) + '" font-weight="' + (o.b ? 700 : 400) + '" text-anchor="' + (o.a || 'start') + '">' + E(s) + '</text>'; }
+function R(x, y, w, h, o) { o = o || {}; return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (o.r == null ? 4 : o.r) + '" fill="' + (o.f || '#fff') + '" stroke="' + (o.s || C.line) + '" stroke-width="' + (o.sw || 1) + '"' + (o.d ? ' stroke-dasharray="4 3"' : '') + (o.op ? ' opacity="' + o.op + '"' : '') + '/>'; }
+function BAR(x, y, w, c) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="5" rx="2.5" fill="' + (c || '#E3E8EB') + '"/>'; }
+/* ボタン：hi＝押す所（オレンジの枠）、pri＝色つきボタン */
+function BT(x, y, w, s, hi, pri) {
+  return R(x, y, w, 17, { f: hi ? C.hiPale : (pri ? C.pri : '#fff'), s: hi ? C.hi : (pri ? C.pri : C.line), sw: hi ? 2.4 : 1, r: 5 }) +
+    T(x + w / 2, y + 11.8, s, { a: 'middle', z: 8.2, c: pri && !hi ? '#fff' : C.ink, b: hi });
+}
+function NO(x, y, n) { return '<circle cx="' + x + '" cy="' + y + '" r="8" fill="' + C.hi + '"/>' + T(x, y + 3.4, n, { a: 'middle', c: '#fff', b: 1, z: 10 }); }
+function AR(x1, y1, x2, y2, c) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (c || C.hi) + '" stroke-width="2.4" marker-end="url(#hgA' + (c === C.pri ? 'p' : 'o') + ')"/>'; }
+var DEF = '<defs><marker id="hgAo" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="' + C.hi + '"/></marker>' +
+  '<marker id="hgAp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="' + C.pri + '"/></marker></defs>';
+function SVG(inner, h) { return '<svg class="hg-svg" viewBox="0 0 320 ' + (h || 200) + '" role="img" aria-hidden="true">' + DEF + inner + '</svg>'; }
+var TABS = [['🏠', 'ホーム'], ['👥', '患者一覧'], ['🖼', '写真'], ['⬜', '比較'], ['📋', 'ログ'], ['⚙️', '設定']];
+/* iPad の画面の枠：tab＝選んでいる下のタブ（0〜5、-1 はなし） */
+function SCR(tab, body, h) {
+  h = h || 200;
+  var s = R(4, 4, 312, h - 8, { f: C.bg, s: '#C9D3D8', r: 8 }) +
+    '<rect x="4" y="4" width="312" height="20" rx="8" fill="' + C.pri + '"/><rect x="4" y="16" width="312" height="8" fill="' + C.pri + '"/>' +
+    T(14, 18, 'デジカル画像フォルダ管理', { c: '#fff', z: 8.5, b: 1 });
+  var ty = h - 26;
+  s += '<rect x="4" y="' + ty + '" width="312" height="22" fill="#fff"/><line x1="4" y1="' + ty + '" x2="316" y2="' + ty + '" stroke="' + C.line + '"/>';
+  TABS.forEach(function (t, i) {
+    var x = 30 + i * 52;
+    if (i === tab) { s += '<rect x="' + (x - 24) + '" y="' + ty + '" width="48" height="22" fill="' + C.pale + '"/><rect x="' + (x - 24) + '" y="' + ty + '" width="48" height="2.5" fill="' + C.pri + '"/>'; }
+    s += T(x, ty + 10, t[0], { a: 'middle', z: 8 }) + T(x, ty + 19, t[1], { a: 'middle', z: 6.8, c: i === tab ? C.pri : C.mute, b: i === tab });
+  });
+  return SVG(s + body, h);
+}
+/* 手の写真のかわりの絵（サンプル写真） */
+function HAND(x, y, w, h, o) {
+  o = o || {};
+  var cx = x + w / 2, s = Math.min(w, h) / 60;
+  return R(x, y, w, h, { f: o.bg || '#C9A27E', s: o.s || '#8C6A4E', sw: o.sw || 1, r: 3 }) +
+    '<g transform="translate(' + cx + ',' + (y + h * 0.58) + ') scale(' + s + ')"><ellipse cx="0" cy="8" rx="16" ry="18" fill="' + C.skin + '"/>' +
+    [-12, -4, 4, 12].map(function (dx, i) { return '<rect x="' + (dx - 3.5) + '" y="' + (-28 + (i === 0 || i === 3 ? 6 : 0)) + '" width="7" height="24" rx="3.5" fill="' + C.skin + '"/>'; }).join('') +
+    '<rect x="13" y="0" width="7" height="16" rx="3.5" fill="' + C.skin + '" transform="rotate(-40 16 8)"/>' + (o.spot ? '<circle cx="-3" cy="6" r="3.2" fill="#9C6B4B"/>' : '') + '</g>';
+}
+var ICON = {
+  pc: function (x, y, l) { return R(x, y, 60, 40, { f: '#fff', s: C.pri, sw: 2, r: 4 }) + R(x + 6, y + 6, 48, 26, { f: C.pale, s: C.pale, r: 2 }) + '<rect x="' + (x + 23) + '" y="' + (y + 40) + '" width="14" height="6" fill="' + C.pri + '"/><rect x="' + (x + 14) + '" y="' + (y + 46) + '" width="32" height="4" rx="2" fill="' + C.pri + '"/>' + (l ? T(x + 30, y + 62, l, { a: 'middle', z: 8.2, b: 1 }) : ''); },
+  folder: function (x, y, l, c) { return '<path d="M' + x + ' ' + (y + 6) + 'h20l6 6h30v32H' + x + 'z" fill="' + (c || '#FFD27A') + '" stroke="#D9A33A" stroke-width="1.5"/>' + (l ? T(x + 28, y + 58, l, { a: 'middle', z: 8.2, b: 1 }) : ''); },
+  file: function (x, y, l, c) { return '<path d="M' + x + ' ' + y + 'h24l9 9v31H' + x + 'z" fill="#fff" stroke="' + (c || C.pri) + '" stroke-width="1.8"/><path d="M' + (x + 24) + ' ' + y + 'v9h9" fill="none" stroke="' + (c || C.pri) + '" stroke-width="1.8"/>' + BAR(x + 5, y + 16, 22, C.pale) + BAR(x + 5, y + 24, 18, C.pale) + BAR(x + 5, y + 32, 22, C.pale) + (l ? T(x + 16, y + 52, l, { a: 'middle', z: 8, b: 1 }) : ''); },
+  tablet: function (x, y, l) { return R(x, y, 46, 60, { f: '#fff', s: C.ink, sw: 2, r: 6 }) + R(x + 4, y + 6, 38, 46, { f: C.pale, s: C.pale, r: 2 }) + '<circle cx="' + (x + 23) + '" cy="' + (y + 56) + '" r="2" fill="' + C.ink + '"/>' + (l ? T(x + 23, y + 74, l, { a: 'middle', z: 8.2, b: 1 }) : ''); },
+  phone: function (x, y) { return R(x, y, 32, 58, { f: '#fff', s: C.ink, sw: 2, r: 6 }) + R(x + 4, y + 7, 24, 40, { f: C.pale, s: C.pale, r: 2 }) + '<circle cx="' + (x + 16) + '" cy="' + (y + 52) + '" r="2.4" fill="' + C.ink + '"/>'; },
+  person: function (x, y, l, c) { return '<circle cx="' + x + '" cy="' + y + '" r="8" fill="' + (c || C.pri) + '"/><path d="M' + (x - 13) + ' ' + (y + 24) + 'a13 13 0 0 1 26 0z" fill="' + (c || C.pri) + '"/>' + (l ? T(x, y + 37, l, { a: 'middle', z: 8.2, b: 1 }) : ''); },
+  doc: function (x, y, l) { return R(x, y, 50, 64, { f: '#fff', s: '#2B579A', sw: 1.8, r: 2 }) + '<rect x="' + x + '" y="' + y + '" width="50" height="10" fill="#2B579A"/>' + T(x + 25, y + 8, 'W', { a: 'middle', c: '#fff', b: 1, z: 7.5 }) + BAR(x + 5, y + 15, 40) + BAR(x + 5, y + 23, 32) + (l ? T(x + 25, y + 78, l, { a: 'middle', z: 8, b: 1 }) : ''); }
+};
+function NOTE(x, y, w, s, c) { return R(x, y, w, 18, { f: c === 'red' ? '#FBE9E7' : '#FFF8E1', s: c === 'red' ? C.red : C.warn, r: 4 }) + T(x + 6, y + 12, s, { z: 8, c: c === 'red' ? C.red : '#7A5A00' }); }
+/* 写真を開いた画面（黒い背景） */
+function VIEWER(body, tools, h) {
+  h = h || 200;
+  return SVG(R(4, 4, 312, h - 8, { f: '#101616', s: '#101616', r: 8 }) + T(14, 18, '見本 花子　2026/11/13 10:20', { c: '#fff', z: 8 }) + body + (tools || ''), h);
+}
+
+/* ---------- 説明の中身 ---------- */
+var TOPICS = {
+  start: { icon: '🧭', group: 'はじめに', title: 'このツールでできること（全体の流れ）',
+    fig: function () {
+      return SVG(ICON.pc(10, 30, 'デジカル（受付）') + AR(74, 50, 98, 50) + ICON.file(102, 30, '患者CSV') + AR(138, 50, 160, 50) +
+        ICON.folder(164, 32, '患者ごとの') + T(192, 102, 'フォルダ（自動）', { a: 'middle', z: 8.2, b: 1 }) + AR(224, 50, 248, 50) + ICON.tablet(254, 18, 'iPad・iPhone') +
+        NO(10, 30, 1) + NO(164, 32, 2) + NO(254, 18, 3) +
+        R(14, 122, 292, 66, { f: C.pale, s: C.pale, r: 8 }) + T(24, 140, '撮った写真は、院内の患者フォルダにだけ保存されます。', { b: 1, z: 8.5 }) +
+        T(24, 156, 'iPad・iPhone の「写真」アプリには残りません。', { z: 8.5 }) + T(24, 172, '経過を並べて説明・印刷・1枚の画像にできます。', { z: 8.5 }), 196);
+    },
+    steps: ['受付がデジカルで患者を登録して<b>CSVを書き出す</b>と、ツールが自動で取り込み、患者ごとの写真フォルダを作ります（15秒ごとに確認。急ぐときはホームの「今すぐ取り込む」）。',
+      'iPad・iPhone で<b>患者を選んで写真を撮る</b>と、その患者のフォルダに保存されます。メモや部位もつけられます。',
+      '前の写真と<b>並べて比較</b>し、患者さんへの説明・印刷・紹介状用の1枚の画像に使えます。',
+      '各見出しや操作の横の小さな <b class="hg-ic">?</b> を押すと、その使い方がこのように開きます。右上の <b class="hg-ic">?</b> からは、すべての説明の一覧が開きます。'],
+    tip: '画面の下のタブ（ホーム・患者一覧・写真・比較・ログ・設定）で画面を切り替えます。「写真」「比較」は患者を開くと押せるようになります。' },
+
+  home: { icon: '🏠', group: '毎日の操作', title: 'ホーム（サーバーの状態・取り込み）', tab: 'home',
+    fig: function () {
+      return SCR(0, T(14, 38, 'サーバーの状態', { b: 1, z: 9.5 }) + BT(14, 46, 76, '今すぐ取り込む', 1, 1) + BT(96, 46, 70, '状態を再確認') + NO(12, 48, 1) +
+        [['取込フォルダ', '○ 見ています'], ['患者フォルダ', '○ 128名'], ['最後の取込', '10:20 3名']].map(function (r, i) {
+          return R(14 + i * 98, 72, 92, 38, { f: '#fff', r: 6 }) + T(20 + i * 98, 86, r[0], { z: 7.8, c: C.mute }) + T(20 + i * 98, 102, r[1], { z: 9, b: 1, c: C.pri });
+        }).join('') + NO(14, 74, 2) +
+        T(14, 126, '直近の処理', { b: 1, z: 8.5 }) + R(14, 132, 292, 38, { f: '#fff', r: 6 }) + BAR(22, 142, 220) + BAR(22, 154, 180) + NOTE(196, 140, 104, '⚠ 注意 1件 → ログ'), 200);
+    },
+    steps: ['朝いちばんに開く画面です。取込フォルダ・患者フォルダが正しく見えているか、最後にいつ取り込んだかが出ます。',
+      '<b>① 今すぐ取り込む</b>：デジカルのCSVを書き出した直後など、待たずに取り込みたいときに押します（ふだんは自動で取り込みます）。',
+      '<b>② 状態の表示</b>：赤や黄色の知らせが出たら、その中の説明に従ってください。「状態を再確認」で最新にします。',
+      '下の「直近の処理」に、取り込んだ人数や注意が出ます。注意は「ログ」タブで中身と直し方を見られます。'],
+    tip: '上の「接続先」の丸が赤いときは、サーバーPCとつながっていません。「つながらないとき」を見てください。' },
+
+  patients: { icon: '👥', group: '毎日の操作', title: '患者を探す・開く', tab: 'patients',
+    fig: function () {
+      return SCR(1, T(14, 38, '患者一覧', { b: 1, z: 9.5 }) + R(14, 44, 292, 18, { f: '#fff' }) + T(22, 56, '🔍 患者ID・氏名・カナ・メモの言葉で検索', { z: 8.2, c: C.mute }) + NO(300, 53, 1) +
+        T(14, 76, '最近開いた患者', { z: 8, c: C.mute }) + BT(80, 67, 60, '見本 花子', 1) + BT(144, 67, 60, '大阪 太郎') + NO(76, 76, 2) +
+        [0, 1, 2].map(function (i) { return R(14 + i * 98, 92, 92, 52, { f: '#fff', s: i === 0 ? C.hi : C.line, sw: i === 0 ? 2.2 : 1, r: 6 }) + T(20 + i * 98, 108, ['1001', '1002', '1003'][i], { z: 7.8, c: C.pri, b: 1 }) + T(20 + i * 98, 122, ['見本 花子', '大阪 太郎', '難波 一郎'][i], { z: 9, b: 1 }) + T(20 + i * 98, 136, ['写真 6枚', '写真 2枚', '写真 0枚'][i], { z: 7.5, c: C.mute }); }).join('') + NO(14, 94, 3) +
+        BT(14, 152, 96, '＋ 患者を手動で追加') + BT(116, 152, 84, '一覧を再読み込み'), 200);
+    },
+    steps: ['「患者一覧」タブの検索欄に、<b>患者ID・氏名・カナの一部</b>を入れると絞り込めます。写真のメモや部位の言葉（例：IPL、左頬）でも探せます。',
+      '<b>最近開いた患者</b>は上に並ぶので、押すだけで開けます。',
+      '患者のカードを押すと、その患者の写真の画面が開きます。',
+      'デジカルに登録した直後で見つからないときは「一覧を再読み込み」。急ぎで登録前に撮るときだけ「＋ 患者を手動で追加」を使います。'],
+    tip: '共用のiPadで患者名を残したくないときは、「設定」の「『最近開いた患者』を残す」をオフにします。' },
+
+  shoot: { icon: '📷', group: '毎日の操作', title: '写真を撮る・送る（メモ・部位をつける）', view: 'detail',
+    fig: function () {
+      return SCR(2, T(14, 38, '見本 花子　1001', { b: 1, z: 9.5 }) + R(14, 44, 292, 74, { f: '#fff', r: 6 }) +
+        T(22, 58, '📝 これから撮る写真につけるメモ（なくても撮れます）', { z: 8, b: 1 }) + R(22, 63, 200, 15, { f: C.bg }) + T(26, 74, '左手・手の甲', { z: 8 }) +
+        BT(22, 82, 40, '顔', 1) + BT(66, 82, 40, '右腕') + BT(110, 82, 50, '治療前') + BT(164, 82, 50, 'IPL') + NO(18, 70, 1) +
+        BT(22, 100, 70, '📍 部位を選ぶ', 1) + T(98, 111, '部位：左手の甲', { z: 8, c: C.pri, b: 1 }) + NO(18, 108, 2) +
+        BT(14, 126, 140, '📷 その場で撮影して追加', 1, 1) + BT(160, 126, 146, '🖼 写真から選ぶ（複数可）', 0, 1) + NO(12, 134, 3) +
+        R(14, 150, 292, 22, { f: C.pale, s: C.pale, r: 5 }) + T(22, 164, '✓ 2枚を保存しました（メモ「左手・手の甲」・部位をつけました）', { z: 8, c: C.pri, b: 1 }), 200);
+    },
+    steps: ['患者を開きます。撮る前に、<b>① メモ</b>（例：右頬・治療前）を入れておくと、撮った写真すべてにつきます。下のボタンを押すだけでも入ります。',
+      '<b>② 📍 部位を選ぶ</b>：人の図を押して部位を選んでおくと、撮った写真に部位がつきます（あとからでもつけられます）。',
+      '<b>③ 📷 その場で撮影して追加</b>：カメラが開きます。撮って「写真を使用」を押すと保存されます。撮ってある写真をまとめて送るときは「🖼 写真から選ぶ（複数可）」。',
+      '下に「保存しました」と出れば完了です。写真の一覧に新しい順で並びます。'],
+    tip: 'メモと部位は、次の患者を開くと空に戻ります（前の患者のメモが、次の患者の写真につかないように）。' },
+
+  guide: { icon: '📐', group: '毎日の操作', title: '前の写真と同じ構図で撮る', view: 'detail',
+    fig: function () {
+      return SVG(R(4, 4, 312, 188, { f: '#101616', s: '#101616', r: 8 }) + T(14, 18, '📐 前の写真に重ねて撮る', { c: '#fff', z: 8.5, b: 1 }) +
+        '<g opacity=".95">' + HAND(70, 26, 180, 112, { bg: '#5A6B66', s: '#5A6B66' }) + '</g>' +
+        '<g opacity=".38">' + HAND(78, 30, 172, 104, { bg: 'none', s: '#fff', sw: 0, spot: 1 }) + '</g>' +
+        R(70, 26, 180, 112, { f: 'none', s: '#fff', sw: 1, d: 1 }) + T(160, 36, 'うすく見えるのが前の写真', { a: 'middle', c: '#fff', z: 8 }) +
+        T(20, 154, 'うすく重ねる前の写真の濃さ', { c: '#fff', z: 7.8 }) + '<line x1="128" y1="151" x2="210" y2="151" stroke="#fff" stroke-width="2"/><circle cx="160" cy="151" r="5" fill="' + C.hi + '"/>' + NO(222, 151, 2) +
+        BT(20, 164, 46, 'やめる') + BT(72, 164, 80, 'カメラを切り替え') + BT(232, 164, 70, '● 撮る', 1, 1) + NO(226, 172, 3) + NO(66, 30, 1), 196);
+    },
+    steps: ['患者の写真の一覧で、<b>前に撮った写真</b>を押して開き、下の「<b>📐 同じ構図で撮る</b>」を押します。',
+      'カメラの映像に、前の写真が<b>うすく重なって</b>見えます。「濃さ」のつまみで見やすくし、手や顔の位置を重ねます。',
+      '「<b>● 撮る</b>」→ よければ「<b>この写真を保存する</b>」（「撮り直す」でやり直し）。',
+      '「前の写真と同じメモ・部位をつける」にチェックがあれば、メモと部位もそのまま引き継ぎます。'],
+    tip: '初めて使うときに「カメラの使用を許可しますか」と聞かれたら「許可」を押してください。' },
+
+  photo: { icon: '🖼', group: '毎日の操作', title: '写真を見る・メモと部位をつける', view: 'detail',
+    fig: function () {
+      return VIEWER(HAND(90, 26, 140, 92, { spot: 1 }) +
+        R(10, 122, 300, 22, { f: '#1D2A2A', s: '#1D2A2A', r: 4 }) + T(16, 136, '📝 この写真のメモ　IPL 1回目', { c: '#fff', z: 8 }) + BT(240, 125, 64, 'メモを書く', 1) + NO(236, 133, 1) +
+        R(10, 146, 300, 20, { f: '#1D2A2A', s: '#1D2A2A', r: 4 }) + T(16, 159, '📍 部位　左手の甲', { c: '#fff', z: 8 }) + BT(240, 148, 64, '部位を選ぶ', 1) + NO(236, 156, 2) +
+        BT(14, 172, 52, '← 前へ') + BT(70, 172, 44, '閉じる') + BT(118, 172, 52, '次へ →') + BT(176, 172, 92, '📐 同じ構図で撮る'), 0, 196);
+    },
+    steps: ['写真の一覧で写真を押すと、大きく開きます。「← 前へ」「次へ →」で切り替え、指2本で広げると拡大できます。',
+      '<b>① メモを書く</b>：その写真だけのメモ（例：IPL 1回目）。ボタンを押すだけでも入ります。直した記録も残ります。',
+      '<b>② 部位を選ぶ</b>：人の図で部位をつけます（くわしくは「部位図の使い方」）。',
+      '写真の上の「📋 コピー」「✏️ 書き込み」は、それぞれの説明を見てください。'],
+    tip: 'メモ・部位は写真のファイルとは別に保存されます。写真そのものは変わりません。' },
+
+  parts: { icon: '📍', group: '毎日の操作', title: '部位図の使い方（部位を選ぶ・絞り込む）', view: 'detail',
+    fig: function () {
+      var body = '<g transform="translate(26,30) scale(.46)">' +
+        '<ellipse cx="100" cy="34" rx="22" ry="28" fill="#EEF3F3" stroke="#8FA6A6"/><rect x="64" y="76" width="72" height="50" rx="8" fill="#EEF3F3" stroke="#8FA6A6"/><rect x="66" y="126" width="68" height="48" rx="8" fill="#EEF3F3" stroke="#8FA6A6"/>' +
+        '<rect x="38" y="78" width="24" height="62" rx="10" fill="#EEF3F3" stroke="#8FA6A6"/><rect x="138" y="78" width="24" height="62" rx="10" fill="#EEF3F3" stroke="#8FA6A6"/>' +
+        '<rect x="36" y="142" width="24" height="56" rx="10" fill="#EEF3F3" stroke="#8FA6A6"/><rect x="140" y="142" width="24" height="56" rx="10" fill="' + C.hi + '" stroke="#C0661A"/>' +
+        '<ellipse cx="48" cy="215" rx="13" ry="16" fill="#EEF3F3" stroke="#8FA6A6"/><ellipse cx="152" cy="215" rx="13" ry="16" fill="' + C.hi + '" stroke="#C0661A"/>' +
+        '<rect x="68" y="176" width="30" height="76" rx="10" fill="#EEF3F3" stroke="#8FA6A6"/><rect x="102" y="176" width="30" height="76" rx="10" fill="#EEF3F3" stroke="#8FA6A6"/></g>';
+      return SVG(R(4, 4, 312, 188, { f: '#fff', r: 8 }) + T(14, 18, '部位を選ぶ', { b: 1, z: 9.5 }) +
+        BT(14, 22, 30, '顔') + BT(48, 22, 44, '体（前）', 1) + BT(96, 22, 44, '体（後ろ）') + NO(10, 30, 1) + body +
+        T(30, 168, '← 患者さんの右', { z: 7.5, c: C.mute }) + T(92, 168, '左 →', { z: 7.5, c: C.mute }) + NO(160, 96, 2) + AR(150, 96, 112, 100) +
+        R(160, 46, 146, 40, { f: C.hiPale, s: C.hi, r: 6 }) + T(168, 60, '選んだ部位：', { z: 8, b: 1 }) + T(168, 76, '左前腕 ✕　左手のひら ✕', { z: 8 }) +
+        R(160, 94, 146, 18, { f: '#fff' }) + T(166, 106, '図にない部位を入力（例：右耳介）', { z: 7.2, c: C.mute }) + NO(306, 103, 3) +
+        BT(160, 120, 40, 'やめる') + BT(256, 120, 50, '決める', 0, 1), 196);
+    },
+    steps: ['上の「顔」「体（前）」「体（後ろ）」で図を切り替えます。',
+      '図は<b>患者さんと向かい合った向き</b>です（図の左側が患者さんの右側）。押すとオレンジになり、もう一度押すと外れます。12個まで選べます。',
+      '図にない部位は、下の欄に入力して「追加」。最後に「決める」（写真を開いているときは「保存する」）。',
+      '<b>絞り込み</b>：写真の一覧の「📍 部位図で絞り込む」で同じ図が開きます。写真がある部位は緑の枠で出るので、押して「この部位で絞り込む」。'],
+    tip: '絞り込みをやめるときは、一覧の上に出る「✕ 解除」を押します。' },
+
+  marks: { icon: '✏️', group: '毎日の操作', title: '写真への書き込み（丸・矢印・文字・物差し）', view: 'detail',
+    fig: function () {
+      return SVG(R(4, 4, 312, 188, { f: '#101616', s: '#101616', r: 8 }) + T(14, 18, '✏️ 書き込み　元の写真はそのままです', { c: '#fff', z: 8.2, b: 1 }) +
+        ['👆 選ぶ', '◯ 丸', '↗ 矢印', '✎ 手書き', 'A 文字', '📏 物差し'].map(function (s, i) { return BT(10 + i * 50, 24, 46, s, i === 1); }).join('') + NO(60, 26, 1) +
+        ['#E53935', '#FDD835', '#FFFFFF', '#1E88E5', '#111111'].map(function (c, i) { return '<rect x="' + (12 + i * 16) + '" y="46" width="13" height="13" rx="3" fill="' + c + '" stroke="#fff" stroke-width="' + (i === 0 ? 2 : .5) + '"/>'; }).join('') +
+        BT(98, 44, 54, '↶ 元に戻す') + BT(156, 44, 92, '🗑 選んだものを消す') + NO(258, 52, 3) +
+        HAND(70, 64, 180, 96, { spot: 1 }) + '<ellipse cx="158" cy="118" rx="16" ry="12" fill="none" stroke="#E53935" stroke-width="2.5"/>' +
+        '<line x1="104" y1="146" x2="146" y2="124" stroke="#FDD835" stroke-width="3"/><path d="M146 124l-9 0l5 -7z" fill="#FDD835"/>' + T(186, 84, '色素斑', { z: 10, b: 1, c: '#fff' }) +
+        '<line x1="196" y1="146" x2="236" y2="146" stroke="#fff" stroke-width="2"/>' + T(216, 140, '10mm（基準）', { a: 'middle', z: 7, c: '#fff' }) + NO(176, 118, 2) +
+        BT(196, 168, 52, 'やめる') + BT(252, 168, 56, '保存する', 1, 1) + NO(246, 176, 4), 196);
+    },
+    steps: ['写真を開いて「<b>✏️ 書き込み</b>」。上の道具（丸・矢印・手書き・文字・物差し）と、色・太さを選びます。',
+      '写真の上を指（マウス）でなぞると描けます。<b>文字</b>は置きたい所を押して入力します。',
+      '<b>直す・消す</b>：「👆 選ぶ・動かす」で書き込みを押すと選べます。動かす・端の白い丸で形を変える・「🗑 選んだものを消す」・色の変更ができます。まちがえたら「↶ 元に戻す」。',
+      '「<b>保存する</b>」で完了。元の写真は変わらず、書き込みだけが保存されます。あとから何度でも直せます。'],
+    tip: '<b>物差し</b>：最初の1本を、長さの分かる物（定規など）に沿って引いてmmを入れると、2本目から長さの<b>めやす</b>が出ます。写真の角度で誤差が出るので、正確な計測には使わないでください。',
+    more: '・写真の上の「書き込みを表示」で、書き込みを隠して元の写真だけを見られます。<br>・全部消してしまったときは、書き込み画面の「前に保存した書き込みに戻す」で、ひとつ前の保存に戻せます。' },
+
+  copy: { icon: '📋', group: '毎日の操作', title: 'コピーして Word・Excel に貼る（小さくする方法）', view: 'detail',
+    fig: function () {
+      return SVG(R(10, 20, 96, 100, { f: '#101616', s: '#101616', r: 6 }) + HAND(18, 28, 80, 60) + BT(16, 96, 50, '📋 コピー', 1) + NO(12, 22, 1) +
+        AR(110, 70, 140, 70) + T(125, 62, 'Ctrl+V', { a: 'middle', z: 8, b: 1, c: C.hi }) +
+        ICON.doc(146, 20, '') + HAND(152, 46, 38, 30) + NO(146, 22, 2) +
+        R(210, 20, 100, 100, { f: '#fff', s: C.pri, sw: 1.5, r: 6 }) + T(218, 34, '図の形式 → サイズ', { z: 7.8, b: 1 }) + R(218, 40, 84, 15, { f: C.hiPale, s: C.hi, sw: 2 }) + T(222, 51, '幅　8 cm', { z: 8, b: 1 }) +
+        T(218, 70, 'または 右クリック →', { z: 7.2 }) + T(218, 82, 'レイアウトの詳細設定', { z: 7.2 }) + T(218, 94, '→ 倍率 50%', { z: 7.2, b: 1 }) + NO(210, 22, 3) +
+        R(10, 132, 300, 56, { f: C.pale, s: C.pale, r: 8 }) + T(20, 148, 'いつも同じ大きさにしたいとき（おすすめ）', { b: 1, z: 8.5 }) +
+        R(20, 156, 70, 26, { f: '#fff', s: C.ink }) + R(90, 156, 70, 26, { f: '#fff', s: C.ink }) + HAND(26, 158, 58, 22) + HAND(96, 158, 58, 22) +
+        T(170, 166, '2列の表を作り、表のプロパティで', { z: 7.5 }) + T(170, 178, '「自動的にセルのサイズを変更」を外す', { z: 7.5, b: 1 }), 196);
+    },
+    steps: ['写真を開いて「<b>📋 コピー</b>」。書き込みを表示しているときは、書き込みも一緒にコピーされます。',
+      'Word・Excel・メールで「<b>貼り付け</b>」（PCは Ctrl+V、iPad・iPhoneは長押し →「ペースト」）。',
+      '<b>小さくする</b>：貼った写真をクリック →「図の形式」タブの右端「サイズ」で<b>幅を 8cm</b> くらいに（縦横の比率はそのまま）。％で決めたいときは、右クリック →「レイアウトの詳細設定」→「サイズ」→「倍率」を <b>50%</b>。',
+      '<b>いつも同じ大きさにしたいとき</b>：Word で「挿入」→「表」→ 2列×1行。表を右クリック →「表のプロパティ」→「オプション」→「<b>自動的にセルのサイズを変更する</b>」のチェックを外す。マスに貼ると、マスの幅に合わせて自動で縮みます。'],
+    tip: '写真はきれいなまま（大きいまま）コピーされます。縮めるのは Word・Excel の側で行うと、印刷しても粗くなりません。',
+    more: '自動でコピーできない画面では、写真が表示されます。<b>右クリック（iPad・iPhoneは長押し）→「コピー」</b>してから貼り付けてください。コピーした記録は監査ログに残ります。' },
+
+  compare: { icon: '⬜', group: '毎日の操作', title: '経過を並べて比較・印刷する', view: 'compare',
+    fig: function () {
+      return SCR(3, BT(10, 28, 72, '3枚を連動させる', 1) + BT(86, 28, 56, '表示をリセット') + BT(146, 28, 86, '撮影日時順（古い→新しい）') + BT(250, 28, 60, '🖨 印刷する', 0, 1) + NO(10, 30, 2) +
+        [0, 1, 2].map(function (i) {
+          return R(10 + i * 102, 50, 96, 112, { f: '#fff', r: 5 }) + T(16 + i * 102, 61, ['2026/09/01', '2026/10/06', '2026/11/13'][i], { z: 7.5, b: 1, c: C.pri }) +
+            HAND(16 + i * 102, 64, 84, 68, { spot: i < 2 }) + BT(16 + i * 102, 138, 18, '－') + BT(36 + i * 102, 138, 30, '全体') + BT(68 + i * 102, 138, 18, '＋', i === 2);
+        }).join('') + NO(300, 146, 3), 196);
+    },
+    steps: ['写真の一覧で「<b>比較する写真を選ぶ</b>」→ 写真を2〜3枚押す →「<b>並べて比較する</b>」。',
+      '<b>② 3枚を連動させる</b>（はじめからオン）：1枚を動かしたり拡大したりすると、ほかの写真も同じだけ動きます。オフにすると1枚ずつ動かせます。',
+      '<b>③ 各写真の「＋」「－」「全体」</b>、または指2本で拡大・縮小、1本指で移動。2回たたくと拡大⇄全体。「◀ 移動」「移動 ▶」で並びを入れ替えます。',
+      '「撮影日時順」で古い順に並べ直し、「🖨 印刷する」で日付つきで印刷できます（PDFにも保存できます）。'],
+    tip: '紹介状やメールに付けたいときは「1枚の画像にする」を使うと、並べた写真が1枚の画像になります。' },
+
+  ba: { icon: '🖼', group: '毎日の操作', title: 'ビフォーアフターを1枚の画像にする', view: 'compare',
+    fig: function () {
+      return SVG(R(4, 4, 312, 188, { f: '#fff', r: 8 }) + T(14, 20, '🖼 1枚の画像にする', { b: 1, z: 9.5 }) +
+        ['◉ いま画面で見えている範囲', '○ 写真全体', '◉ 横に並べる', '○ 縦に並べる', '☑ 撮影日を入れる', '☑ 写真のメモ・部位', '☑ 書き込みを入れる', '☐ 患者名とIDを入れる'].map(function (s, i) {
+          return T(16 + (i % 2) * 140, 36 + Math.floor(i / 2) * 13, s, { z: 7.8, c: i === 7 ? C.red : C.ink, b: i === 7 });
+        }).join('') + NO(300, 36, 1) +
+        R(16, 92, 288, 70, { f: C.bg, s: C.line, r: 6 }) + [0, 1].map(function (i) {
+          return R(26 + i * 136, 98, 128, 14, { f: C.pale, s: C.pale, r: 0 }) + T(30 + i * 136, 108, ['2026/09/01　治療前', '2026/11/13　治療後'][i], { z: 7.5, b: 1, c: '#095E66' }) + HAND(26 + i * 136, 112, 128, 44, { spot: i === 0 });
+        }).join('') + NO(16, 94, 2) +
+        BT(150, 168, 50, '📋 コピー') + BT(206, 168, 98, '💾 画像を保存', 1, 1) + NO(198, 176, 3), 196);
+    },
+    steps: ['比較の画面で「<b>🖼 1枚の画像にする</b>」。① 範囲（見えている範囲／写真全体）・並べ方・入れる項目を選びます。',
+      '② 下に、できあがりの見本がすぐ出ます。',
+      '③「📋 コピー」で Word・メールに貼る、または「💾 画像を保存」でファイル（JPEG）にします。iPad・iPhone では「画像を保存」を選ぶと写真アプリに入ります。'],
+    tip: '<b>患者名とID</b>は、チェックしたときだけ入ります。院外に出すときは外してください。保存・コピーした記録は監査ログに残ります。' },
+
+  pnote: { icon: '📝', group: '毎日の操作', title: '患者のメモ（撮り方の申し送り）', view: 'detail',
+    fig: function () {
+      return SCR(2, R(14, 34, 292, 74, { f: '#FFFBF0', s: '#E7B85A', r: 6 }) + T(22, 50, '📝 この患者のメモ', { b: 1, z: 9 }) + T(120, 50, '2026/10/16　院長', { z: 7.8, c: C.mute }) + BT(234, 39, 64, 'メモを直す', 1) + NO(232, 47, 1) +
+        T(22, 70, '左手の甲を真上から。指を開いて机に置き、', { z: 8.5 }) + T(22, 84, '30cm離れて撮る。診察室の白い照明で。', { z: 8.5 }) + T(22, 100, '（撮る人が変わっても同じ写真になるように）', { z: 7.5, c: C.mute }) +
+        ICON.person(60, 128, '看護師A') + AR(80, 140, 124, 140) + ICON.person(150, 128, '看護師B', '#2F6FB0') + T(230, 146, '同じ構図で撮れる', { a: 'middle', b: 1, z: 9, c: C.pri }), 200);
+    },
+    steps: ['患者を開いた画面の上の「<b>📝 この患者のメモ</b>」→「メモを書く（直す）」。',
+      '撮り方（向き・距離・照明）や、撮影時の配慮（例：女性スタッフで、カーテンを閉めて）を書いて「保存する」。',
+      '次に誰がその患者を開いても、いちばん上に出ます。書いた人と日時も残ります。'],
+    tip: '写真1枚ごとのメモは、写真を開いた画面の「メモを書く」です（こちらは患者全体のメモ）。' },
+
+  logs: { icon: '📋', group: '困ったとき', title: '取込ログ（エラーの直し方）', tab: 'logs',
+    fig: function () {
+      return SCR(4, T(14, 38, '取込ログ', { b: 1, z: 9.5 }) + BT(14, 44, 44, 'すべて') + BT(62, 44, 52, '注意のみ', 1) + BT(118, 44, 56, 'エラーのみ') + NO(12, 52, 1) +
+        R(14, 68, 292, 98, { f: '#fff', r: 6 }) +
+        [['10:20', '取込 3名（新規2・更新1）', 'ok'], ['10:05', '列が足りない行があります（2行）', 'warn'], ['09:50', 'CSVを開けませんでした', 'err']].map(function (r, j) {
+          return T(22, 86 + j * 26, r[0], { z: 8, c: C.mute }) + T(52, 86 + j * 26, r[1], { z: 8.2, c: r[2] === 'err' ? C.red : r[2] === 'warn' ? '#7A5A00' : C.ink, b: r[2] !== 'ok' }) +
+            (r[2] !== 'ok' ? BT(232, 76 + j * 26, 66, '詳細と直し方', j === 1) : '');
+        }).join('') + NO(226, 110, 2), 200);
+    },
+    steps: ['「ログ」タブで、取り込みの結果が新しい順に出ます。「注意のみ」「エラーのみ」で絞り込めます。',
+      '黄色・赤の行の「<b>詳細と直し方</b>」を押すと、原因と直し方が出ます（例：CSVの列が足りない・文字コードが違う）。',
+      '直してからもう一度CSVを書き出すか、ホームの「今すぐ取り込む」で取り込み直します。'],
+    tip: '個人情報を守るため、ログの患者IDは「001***」、氏名は「山＊＊」のように伏せて表示されます（仕様です）。' },
+
+  connect: { icon: '📶', group: '困ったとき', title: 'つながらないとき・iPad を追加するとき',
+    fig: function () {
+      return SVG(ICON.pc(16, 24, 'サーバーPC') + T(46, 98, '「起動.bat」で', { a: 'middle', z: 7.8 }) + T(46, 110, '黒い画面が開いている', { a: 'middle', z: 7.8, b: 1 }) + NO(16, 24, 1) +
+        '<path d="M110 48q30-26 60 0M120 56q20-16 40 0" fill="none" stroke="' + C.pri + '" stroke-width="2.4"/><circle cx="140" cy="64" r="3" fill="' + C.pri + '"/>' + T(140, 84, '同じ院内Wi-Fi', { a: 'middle', z: 8.2, b: 1 }) + NO(110, 30, 2) +
+        ICON.tablet(220, 16, 'iPad・iPhone') + R(196, 102, 112, 18, { f: C.pale, s: C.pri }) + T(252, 114, 'https://…:8444', { a: 'middle', z: 8, b: 1, c: C.pri }) + NO(212, 18, 3) +
+        R(14, 130, 292, 58, { f: '#FFF8E1', s: C.warn, r: 8 }) + T(24, 146, '上の「接続先」の丸が赤いとき', { b: 1, z: 8.5 }) + T(24, 162, '→ ①②③の順に確かめる。サーバーPCの再起動は', { z: 8 }) + T(24, 176, '　「停止.bat」→「起動.bat」', { z: 8, b: 1 }), 196);
+    },
+    steps: ['<b>① サーバーPC</b>で「起動.bat」を押して開いた黒い画面が、開いたままになっているか確かめます（閉じるとつながりません）。',
+      '<b>② iPad・iPhone</b>が、サーバーPCと<b>同じ院内Wi-Fi</b>につながっているか確かめます。',
+      '<b>③ アドレス</b>：Safari で https://（サーバーPCのアドレス）:8444 を開きます。アドレスはサーバーPCの「iPadのURLを表示.bat」で確かめられます。',
+      '新しい iPad・iPhone を追加するときは、院内の証明書を入れてから③のアドレスを開き、ログインします（マニュアルの「iPad・iPhoneの準備」）。'],
+    tip: '「接続はプライベートではありません」と出るときは、その端末に院内の証明書が入っていません。' },
+
+  merge: { icon: '🗂', group: '管理者', title: '2重になった患者をまとめる・削除する（管理者）', view: 'detail', admin: true,
+    fig: function () {
+      return SVG(R(14, 24, 120, 56, { f: '#fff', s: C.hi, sw: 2, r: 6 }) + T(22, 40, '1011　見本 建一', { b: 1, z: 8.5 }) + T(22, 54, '（漢字違いで2重）', { z: 7.8, c: C.mute }) + T(22, 70, '写真 2枚', { z: 8 }) + NO(14, 24, 1) +
+        AR(140, 52, 178, 52) + T(159, 44, '統合', { a: 'middle', b: 1, z: 8.5, c: C.hi }) +
+        R(184, 24, 122, 56, { f: '#fff', s: C.pri, sw: 2, r: 6 }) + T(192, 40, '1001　見本 健一', { b: 1, z: 8.5 }) + T(192, 54, '（正しい方）', { z: 7.8, c: C.mute }) + T(192, 70, '写真 6枚 → 8枚', { z: 8, b: 1, c: C.pri }) + NO(184, 24, 2) +
+        R(14, 98, 292, 88, { f: '#FBE9E7', s: '#E8B4B0', r: 8 }) + T(24, 114, '管理者だけの操作（写真の画面のいちばん下）', { b: 1, z: 8.5, c: C.red }) +
+        BT(24, 122, 140, 'この患者フォルダを削除', 0) + BT(24, 146, 140, '別の患者にまとめる（統合）', 1) + NO(170, 154, 3) +
+        T(176, 132, '削除は「_削除済み」へ', { z: 7.5 }) + T(176, 144, '移すだけ（戻せます）', { z: 7.5 }), 196);
+    },
+    steps: ['漢字の間違いなどで<b>同じ患者が2つ</b>できたときに使います（管理者で入ったときだけ表示されます）。',
+      'まちがっている方の患者を開き、写真の画面のいちばん下の「<b>別の患者にまとめる（統合）</b>」を押します。',
+      '残す方の患者を選んで確定すると、写真・メモ・部位・書き込みがすべてそちらへ移ります。',
+      '「この患者フォルダを削除」は、保存先の中の「_削除済み」へ移すだけです。あとから戻せます。'],
+    tip: 'デジカル側の登録も直しておかないと、次の取り込みでまた2重に作られることがあります。' },
+
+  backup: { icon: '💾', group: '管理者', title: 'バックアップ（PCが壊れたときの備え）', tab: 'settings', admin: true,
+    fig: function () {
+      return SVG(ICON.pc(16, 24, 'サーバーPC') + AR(84, 46, 120, 46) + ICON.file(126, 26, 'バックアップ') + AR(166, 46, 202, 46) + ICON.folder(208, 24, '保存先') + T(236, 94, '（外付けHDD・NAS）', { a: 'middle', z: 7.5 }) +
+        R(14, 112, 292, 76, { f: '#fff', r: 8 }) + T(24, 128, '設定 → 管理者の操作 → バックアップ', { b: 1, z: 8.5 }) + BT(24, 136, 132, '今すぐバックアップを取る', 1, 1) + NO(18, 144, 1) +
+        T(24, 168, '保存先・間隔（7/14/28日）・写真の中身を入れるかは', { z: 7.8 }) + T(24, 180, '「運用の設定」で変えて「変更を保存する」', { z: 7.8, b: 1 }) + NO(300, 172, 2), 196);
+    },
+    steps: ['「設定」タブ →「バックアップ（PCが壊れたときの備え）」で、いまの状態（前回いつ取ったか・保存先）を確かめます。',
+      '<b>① 今すぐバックアップを取る</b>：利用者・監査ログ・証明書・設定・患者情報・写真メモ・写真の一覧を保存先へ控えます。',
+      '<b>② 運用の設定</b>：保存先・間隔・写真の中身も入れるか・残す回数を変えて「変更を保存する」。決めた間隔で自動でも取ります。',
+      '<b>戻すとき</b>：サーバーPCで「停止.bat」→「バックアップから戻す.bat」（マニュアルの「PCが壊れたとき」）。'],
+    tip: '保存先は、サーバーPCとは<b>別の物</b>（外付けHDD・NASなど）にしてください。同じPCの中だけだと、PCが壊れたときに一緒に失われます。' },
+
+  settings: { icon: '⚙️', group: '設定', title: '設定（この端末・運用の設定）', tab: 'settings',
+    fig: function () {
+      return SCR(5, [['一定時間さわらなければ患者一覧へ戻る', 'オン'], ['「最近開いた患者」を残す', 'オン'], ['この端末の呼び名', '診察1'], ['いま表示している患者を消す', '今すぐ消す']].map(function (r, i) {
+        return R(14, 30 + i * 26, 292, 22, { f: '#fff', s: i === 0 ? C.hi : C.line, sw: i === 0 ? 2 : 1, r: 5 }) + T(22, 44 + i * 26, r[0], { z: 8.2, b: 1 }) + BT(240, 32 + i * 26, 60, r[1], 0, i < 2);
+      }).join('') + NO(10, 41, 1) +
+        R(14, 136, 292, 30, { f: C.pale, s: C.pale, r: 5 }) + T(22, 149, '管理者：利用者を管理する・記録を見る・運用の設定', { z: 8, b: 1 }) + T(22, 161, '（メモのかんたん入力ボタン・写真の削除を許可 など）', { z: 7.5 }) + NO(306, 151, 2), 200);
+    },
+    steps: ['<b>この端末の設定</b>：さわらないと患者一覧へ戻る（画面に患者名を残さない）、最近開いた患者を残すか、端末の呼び名（右上に表示）。',
+      '「いま表示している患者を消す」で、すぐに患者一覧へ戻り、最近開いた患者の記録も消せます。',
+      '<b>管理者</b>：「利用者の画面へ」で職員の追加・停止・パスワード再設定、「記録を見る」で監査ログ。',
+      '<b>運用の設定</b>（管理者）：メモのかんたん入力ボタン（例：顔, 右腕, 治療前, IPL）・写真の削除を許可・取り込みの間隔など。変えたら「変更を保存する」。'],
+    tip: '保存先フォルダ（NAS）や待ち受けポートは、この画面からは変えません（サーバーPCの「保存先を設定する.bat」）。' }
+};
+var ORDER = ['start', 'home', 'patients', 'shoot', 'guide', 'photo', 'parts', 'marks', 'copy', 'compare', 'ba', 'pnote', 'logs', 'connect', 'merge', 'backup', 'settings'];
+
+/* ---------- 画面の部品 ---------- */
+var css = document.createElement('style');
+css.textContent = [
+  '.hg-q{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #C5CFD4;background:#fff;color:#7D8B93;font:700 12px/1 -apple-system,sans-serif;cursor:pointer;vertical-align:2px;opacity:.8;flex:0 0 auto}',
+  '.hg-q:hover,.hg-q:focus{opacity:1;color:#0E7C86;border-color:#0E7C86;outline:none}',
+  '.hg-q.hg-dark{background:rgba(255,255,255,.12);color:#DDE;border-color:rgba(255,255,255,.4)}',
+  '#hgHeadBtn{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.15);color:#fff;font:700 15px/1 -apple-system,sans-serif;cursor:pointer;flex:0 0 auto}',
+  '#hgDlg{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(20,30,35,.45);padding:12px}',
+  '#hgDlg.is-on{display:flex}',
+  '#hgDlg .hg-box{width:min(680px,100%);max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden}',
+  '#hgDlg .hg-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0E7C86;color:#fff}',
+  '#hgDlg .hg-head b{flex:1;font-size:15.5px}',
+  '#hgDlg .hg-head button{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;font-family:inherit}',
+  '#hgDlg .hg-body{padding:14px 16px 18px;overflow:auto;-webkit-overflow-scrolling:touch;font-size:15px;line-height:1.75;color:#33414A}',
+  '.hg-svg{display:block;width:100%;max-width:560px;height:auto;margin:0 auto 10px;background:#FBFCFC;border:1px solid #E3E8EB;border-radius:10px;font-family:-apple-system,"Hiragino Sans","Yu Gothic","Meiryo",sans-serif}',
+  '.hg-steps{margin:6px 0 10px;padding-left:0;list-style:none;counter-reset:hs}',
+  '.hg-steps li{position:relative;padding:7px 0 7px 36px;border-bottom:1px dashed #E3E8EB;counter-increment:hs}',
+  '.hg-steps li:before{content:counter(hs);position:absolute;left:0;top:8px;width:25px;height:25px;border-radius:50%;background:#F28C28;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}',
+  '.hg-tip{background:#FFF8E1;border-left:4px solid #E0A100;padding:8px 10px;border-radius:6px;margin:8px 0;font-size:14px}',
+  '.hg-more{background:#E3F2F3;padding:8px 10px;border-radius:6px;margin:8px 0;font-size:14px}',
+  '.hg-ic{display:inline-flex;width:18px;height:18px;border-radius:50%;border:1px solid #9AA7AE;align-items:center;justify-content:center;font-size:11px}',
+  '.hg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:6px 0 12px}',
+  '.hg-grid button{display:flex;gap:8px;align-items:center;text-align:left;padding:10px;border:1px solid #D5DDE1;border-radius:10px;background:#fff;cursor:pointer;font-size:14px;color:#33414A;font-family:inherit;min-height:48px}',
+  '.hg-grid button:hover{border-color:#0E7C86;background:#F3FAFA}',
+  '.hg-grid span{font-size:20px}',
+  '.hg-grp{font-weight:700;color:#0E7C86;margin-top:6px;font-size:14px}',
+  '.hg-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}',
+  '.hg-adm{display:inline-block;font-size:11.5px;background:#FBE9E7;color:#C2372E;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}',
+  '@media print{.hg-q,#hgHeadBtn,#hgDlg{display:none!important}}'
+].join('\n');
+document.head.appendChild(css);
+
+function ensureDlg() {
+  var d = $('hgDlg');
+  if (d) { return d; }
+  d = document.createElement('div');
+  d.id = 'hgDlg';
+  d.setAttribute('role', 'dialog');
+  d.setAttribute('aria-modal', 'true');
+  d.innerHTML = '<div class="hg-box"><div class="hg-head"><b id="hgTitle">使い方</b><button type="button" id="hgIdx">一覧へ</button><button type="button" id="hgX" aria-label="閉じる">✕</button></div><div class="hg-body" id="hgBody"></div></div>';
+  document.body.appendChild(d);
+  $('hgIdx').onclick = function () { hgOpen(); };
+  $('hgX').onclick = hgClose;
+  d.addEventListener('click', function (e) { if (e.target === d) { hgClose(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && d.classList.contains('is-on')) { e.stopPropagation(); hgClose(); } }, true);
+  return d;
+}
+function hgClose() { var d = $('hgDlg'); if (d) { d.classList.remove('is-on'); } }
+function canGo(t) {
+  if (t.tab) { var b = document.querySelector('#tapbar button[data-view="' + t.tab + '"]'); return !!(b && !b.disabled); }
+  return false;
+}
+function hgOpen(key) {
+  var d = ensureDlg(), b = $('hgBody'), t = TOPICS[key];
+  if (!t) {
+    $('hgTitle').textContent = '使い方の一覧';
+    $('hgIdx').style.display = 'none';
+    var groups = [];
+    ORDER.forEach(function (k) { if (groups.indexOf(TOPICS[k].group) < 0) { groups.push(TOPICS[k].group); } });
+    b.innerHTML = '<div style="color:#5A6E6E;margin-bottom:6px;font-size:14px">知りたい項目を押してください。各画面の見出しや操作の横の <b class="hg-ic">?</b> からも開けます。</div>' +
+      groups.map(function (g) {
+        return '<div class="hg-grp">' + E(g) + '</div><div class="hg-grid">' + ORDER.filter(function (k) { return TOPICS[k].group === g; }).map(function (k) {
+          return '<button type="button" data-k="' + k + '"><span>' + TOPICS[k].icon + '</span>' + E(TOPICS[k].title) + '</button>';
+        }).join('') + '</div>';
+      }).join('');
+    Array.prototype.forEach.call(b.querySelectorAll('[data-k]'), function (x) { x.onclick = function () { hgOpen(x.getAttribute('data-k')); }; });
+  } else {
+    $('hgTitle').textContent = t.icon + ' ' + t.title;
+    $('hgIdx').style.display = '';
+    var i = ORDER.indexOf(key), nx = ORDER[i + 1];
+    b.innerHTML = (t.admin ? '<div><span class="hg-adm">管理者で入ったときだけの操作</span></div>' : '') + t.fig() +
+      '<ol class="hg-steps">' + t.steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
+      (t.tip ? '<div class="hg-tip">💡 ' + t.tip + '</div>' : '') + (t.more ? '<div class="hg-more">' + t.more + '</div>' : '') +
+      '<div class="hg-foot">' + (canGo(t) ? '<button type="button" class="btn btn-primary" id="hgGo">この画面を開く</button>' : '') +
+      '<button type="button" class="btn" id="hgBack">一覧へ</button>' + (nx ? '<button type="button" class="btn" id="hgNext">次：' + E(TOPICS[nx].title) + ' →</button>' : '') + '</div>';
+    var go = $('hgGo');
+    if (go) { go.onclick = function () { hgClose(); var tb = document.querySelector('#tapbar button[data-view="' + t.tab + '"]'); if (tb) { tb.click(); } }; }
+    $('hgBack').onclick = function () { hgOpen(); };
+    var n = $('hgNext');
+    if (n) { n.onclick = function () { hgOpen(nx); }; }
+  }
+  b.scrollTop = 0;
+  d.classList.add('is-on');
+}
+window.hgOpen = hgOpen;
+window.hgClose = hgClose;
+
+/* ---------- 小さな「?」を付ける（何度呼んでも1個だけ） ---------- */
+function qBtn(key, dark) {
+  var q = document.createElement('button');
+  q.type = 'button';
+  q.className = 'hg-q no-print' + (dark ? ' hg-dark' : '');
+  q.textContent = '?';
+  q.title = '使い方を見る';
+  q.setAttribute('aria-label', '使い方を見る');
+  q.setAttribute('data-hg', key);
+  q.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); hgOpen(key); });
+  return q;
+}
+/* where：'after'＝その要素のすぐ後ろ、'in'＝要素の中の最後 */
+function addQ(el, key, where, dark) {
+  if (!el || (el.parentNode && el.parentNode.querySelector && el.parentNode.querySelector(':scope > [data-hg="' + key + '"]')) || el.querySelector('[data-hg="' + key + '"]')) { return; }
+  var q = qBtn(key, dark);
+  if (where === 'in') { el.appendChild(q); } else if (el.nextSibling) { el.parentNode.insertBefore(q, el.nextSibling); } else { el.parentNode.appendChild(q); }
+}
+/* 見出しの文字 → 説明 */
+var HEADS = [['サーバーの状態', 'home'], ['患者一覧', 'patients'], ['写真', 'photo'], ['取込ログ', 'logs'], ['ログイン中の人', 'settings'], ['管理者の操作', 'settings'], ['設定（この端末のみ）', 'settings'], ['バックアップ', 'backup'], ['運用の設定', 'settings']];
+function attachHeads() {
+  Array.prototype.forEach.call(document.querySelectorAll('main h2.section, main h3.sub'), function (h) {
+    if (h.querySelector('.hg-q')) { return; }
+    var txt = (h.firstChild && h.firstChild.nodeType === 3 ? h.firstChild.nodeValue : h.textContent).trim();
+    var m = null;
+    HEADS.forEach(function (p) { if (!m && txt.indexOf(p[0]) === 0) { m = p; } });
+    if (!m) { return; }
+    var q = qBtn(m[1]);
+    var first = h.firstChild && h.firstChild.nodeType === 3 ? h.firstChild : null;
+    if (first && first.nextSibling) { h.insertBefore(q, first.nextSibling); } else { h.appendChild(q); }
+  });
+}
+function attachOps() {
+  // 写真の画面
+  var nh = document.querySelector('#patientNoteCard .note-head b'); addQ(nh, 'pnote', 'after');
+  addQ(document.querySelector('label.upmemo-label'), 'shoot', 'in');   // ラベルの中（同じ行）に置く
+  addQ($('btnPartFilter'), 'parts', 'after');
+  addQ(document.querySelector('#patientDeleteZone .dz-head'), 'merge', 'in');
+  // 写真を開いた画面（黒い背景）
+  var vt = $('viewerTools'); if (vt && !vt.querySelector('[data-hg="photo"]')) { vt.appendChild(qBtn('photo', true)); }
+  addQ($('btnGuideCam'), 'guide', 'after', true);
+  // 書き込み・同じ構図・部位図・1枚の画像
+  addQ(document.querySelector('#markEditor .mk-head b'), 'marks', 'after', true);
+  addQ(document.querySelector('#guideCam .gc-head b'), 'guide', 'after', true);
+  addQ($('partsTitle'), 'parts', 'in');
+  addQ(document.querySelector('#baModal h3'), 'ba', 'in');
+  // 比較の画面
+  var tb = document.querySelector('#view-compare .cmp-toolbar'); if (tb && !tb.querySelector('[data-hg="compare"]')) { tb.insertBefore(qBtn('compare'), tb.children[1] || null); }
+  // 右上の「?」（すべての説明の一覧）
+  var meta = document.querySelector('.topbar-meta');
+  if (meta && !$('hgHeadBtn')) {
+    var hb = document.createElement('button');
+    hb.type = 'button'; hb.id = 'hgHeadBtn'; hb.textContent = '?'; hb.title = '使い方・困ったとき'; hb.setAttribute('aria-label', '使い方・困ったとき');
+    hb.onclick = function () { hgOpen(); };
+    meta.appendChild(hb);
+  }
+}
+function init() { attachHeads(); attachOps(); }
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+window.__helpGuide = { TOPICS: TOPICS, ORDER: ORDER, init: init };
 })();
 
 </script>

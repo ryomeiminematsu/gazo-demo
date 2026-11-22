@@ -1,5 +1,5 @@
 /* 体験デモ：一度開いたら、ネットなしでも開けるようにする */
-var CACHE = 'dgk-demo-2.7.0-0c38e6ee';
+var CACHE = 'dgk-demo-2.7.0-92d8c6ad';
 var FILES = ["./", "index.html", "manifest.json", "icon-180.png", "icon-512.png"];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
